@@ -53,9 +53,10 @@ def build_dataloaders(
     return train_loader, val_loader, train_ds.classes
 
 
-def build_model(num_classes: int) -> nn.Module:
+def build_model(num_classes: int, pretrained: bool = True) -> nn.Module:
     """Construct MobileNetV2 with top-30% backbone unfrozen for fine-tuning."""
-    model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
+    weights = models.MobileNet_V2_Weights.IMAGENET1K_V1 if pretrained else None
+    model = models.mobilenet_v2(weights=weights)
     backbone = list(model.features.children())
     start_unfreeze = int(len(backbone) * (1 - UNFREEZE_RATIO))
     for i, layer in enumerate(backbone):

@@ -103,8 +103,8 @@ uv run python run_web.py
 | `/` | GET | 首页 |
 | `/identify` | GET | 上传 + 识别页面 |
 | `/nav` | GET | 关于页 |
-| `/predict` | POST | `multipart/form-data`，字段 `image` |
-| `/get_treatment_advice` | POST | JSON `{plant_class, disease_name, disease_degree, health_status, provider?, api_key?, model?}` |
+| `/predict` | POST | `multipart/form-data`，字段 `image`（返回诊断结果、Top-3 疑似病害概率及低置信度警告） |
+| `/get_treatment_advice` | POST | JSON `{plant_class, disease_name, disease_degree, health_status, provider?, api_key?, model?}`（支持 SSE 流式 Markdown 建议） |
 | `/api/llm/providers` | GET | 返回 provider/model 清单，前端用来填下拉框 + datalist |
 
 默认绑定 `127.0.0.1:5000`，通过 `.env` 里的 `HOST` / `PORT` / `FLASK_DEBUG` 调整。
