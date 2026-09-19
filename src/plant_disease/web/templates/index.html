@@ -12,6 +12,21 @@
       </div>
       <button type="submit" class="btn" id="submit-btn">识别</button>
     </form>
+
+    <div class="sample-section">
+      <span class="sample-label">快速体验（点击内置样本）：</span>
+      <div class="sample-chips">
+        <button type="button" class="sample-chip" data-sample="{{ url_for('static', filename='samples/sample_tomato_blight.jpg') }}" data-name="番茄早疫病样本.jpg">
+          🍅 番茄早疫病
+        </button>
+        <button type="button" class="sample-chip" data-sample="{{ url_for('static', filename='samples/sample_corn_rust.jpg') }}" data-name="玉米锈病样本.jpg">
+          🌽 玉米锈病
+        </button>
+        <button type="button" class="sample-chip" data-sample="{{ url_for('static', filename='samples/sample_apple_healthy.jpg') }}" data-name="苹果健康叶样本.jpg">
+          🍏 苹果健康叶
+        </button>
+      </div>
+    </div>
   </div>
 
   <details class="card llm-settings" id="llm-settings">
@@ -33,22 +48,37 @@
 
   <div class="card" id="result-card" hidden>
     <h2>识别结果</h2>
+
+    <div id="low-conf-alert" class="alert warning" hidden>
+      ⚠️ <strong>置信度偏低提示</strong>：最高置信度低于 40%，可能是由于图像模糊、光照干扰或上传了非系统支持的农作物叶片，请注意核实。
+    </div>
+
     <dl class="result">
       <dt>植物种类</dt><dd id="r-plant"></dd>
       <dt>健康状况</dt><dd id="r-health"></dd>
       <dt>病害名称</dt><dd id="r-disease"></dd>
       <dt>患病程度</dt><dd id="r-degree"></dd>
-      <dt>置信度</dt><dd id="r-prob"></dd>
+      <dt>主要置信度</dt><dd id="r-prob"></dd>
     </dl>
+
+    <div class="top-candidates-wrap" id="top-candidates-wrap">
+      <h3>疑似病害 Top-3 概率分布</h3>
+      <div id="top-candidates-list" class="top-candidates-list"></div>
+    </div>
+
     <button id="advice-btn" class="btn secondary">获取治理建议</button>
   </div>
 
   <div class="card" id="advice-card" hidden>
-    <h2>治理建议</h2>
-    <pre id="advice-text"></pre>
+    <div class="advice-card-header">
+      <h2>治理建议</h2>
+      <button id="copy-advice-btn" type="button" class="btn-copy" title="复制建议文本">📋 复制建议</button>
+    </div>
+    <div id="advice-text" class="markdown-body"></div>
   </div>
 
   <div class="error" id="error-box" hidden></div>
 </section>
+<script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/identify.js') }}"></script>
 {% endblock %}

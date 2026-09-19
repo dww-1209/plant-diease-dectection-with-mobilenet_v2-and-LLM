@@ -70,6 +70,17 @@ class _FakeModel:
             "health_status": "患病",
             "disease_name": "番茄早疫病",
             "disease_degree": "一般",
+            "low_confidence": False,
+            "top_candidates": [
+                {
+                    "class_id": 0,
+                    "probability": 0.9,
+                    "plant_class": "番茄",
+                    "health_status": "患病",
+                    "disease_name": "番茄早疫病",
+                    "disease_degree": "一般",
+                }
+            ],
         }
 
 
@@ -89,6 +100,8 @@ def test_predict_success_path(settings):
     data = resp.get_json()
     assert data["success"] is True
     assert data["data"]["plant_class"] == "番茄"
+    assert "top_candidates" in data["data"]
+    assert "low_confidence" in data["data"]
 
 
 class _BadProvider(MockProvider):
