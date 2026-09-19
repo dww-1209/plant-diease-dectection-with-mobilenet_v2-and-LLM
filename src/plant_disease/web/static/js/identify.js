@@ -8,19 +8,14 @@ const resultCard = document.getElementById("result-card");
 const adviceCard = document.getElementById("advice-card");
 const errorBox = document.getElementById("error-box");
 const adviceBtn = document.getElementById("advice-btn");
-const copyAdviceBtn = document.getElementById("copy-advice-btn");
 const providerSel = document.getElementById("llm-provider");
 const apiKeyInput = document.getElementById("llm-api-key");
 const modelInput = document.getElementById("llm-model");
 const modelList = document.getElementById("llm-model-list");
-const lowConfAlert = document.getElementById("low-conf-alert");
-const topCandWrap = document.getElementById("top-candidates-wrap");
-const topCandList = document.getElementById("top-candidates-list");
 
 let lastResult = null;
 let currentObjectURL = null;
 let providersCatalog = {};
-let rawAdviceMarkdown = "";
 
 // 拉 provider/model 清单填到下拉框 + datalist。失败不阻塞核心流程，
 // 用户可以手填模型 ID。
@@ -124,32 +119,8 @@ function showPreview(file) {
   dropzoneHint.textContent = `已选：${file.name}（${formatSize(file.size)}）`;
 }
 
-// 快速样本图片点击加载
-document.querySelectorAll(".sample-chip").forEach((chip) => {
-  chip.addEventListener("click", async () => {
-    clearError();
-    const url = chip.dataset.sample;
-    const name = chip.dataset.name || "sample.jpg";
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const blob = await resp.blob();
-      const file = new File([blob], name, { type: blob.type || "image/jpeg" });
-
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      fileInput.files = dt.files;
-      showPreview(file);
-
-      resultCard.hidden = true;
-      adviceCard.hidden = true;
-    } catch (err) {
-      showError("加载示例图片失败：" + err.message);
-    }
-  });
-});
-
-// Click on the dropzone opens the file picker
+// Click on the dropzone opens the file picker. Input is OUTSIDE the dropzone
+// now, so there is no double-fire from <label> default behavior.
 dropzone.addEventListener("click", () => fileInput.click());
 dropzone.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter" || ev.key === " ") {
@@ -179,31 +150,6 @@ fileInput.addEventListener("change", () => {
   if (fileInput.files[0]) showPreview(fileInput.files[0]);
 });
 
-function renderTopCandidates(candidates) {
-  if (!topCandWrap || !topCandList) return;
-  topCandList.innerHTML = "";
-  if (!Array.isArray(candidates) || candidates.length === 0) {
-    topCandWrap.hidden = true;
-    return;
-  }
-  candidates.forEach((cand, idx) => {
-    const pct = (cand.probability * 100).toFixed(1);
-    const item = document.createElement("div");
-    item.className = "top-cand-item";
-    item.innerHTML = `
-      <div class="top-cand-header">
-        <span class="top-cand-name">${idx + 1}. ${cand.plant_class} · ${cand.disease_name} <small style="color:var(--muted)">(${cand.disease_degree})</small></span>
-        <span class="top-cand-prob">${pct}%</span>
-      </div>
-      <div class="top-cand-bar-track">
-        <div class="top-cand-bar-fill" style="width: ${Math.max(2, Math.min(100, pct))}%"></div>
-      </div>
-    `;
-    topCandList.appendChild(item);
-  });
-  topCandWrap.hidden = false;
-}
-
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   clearError();
@@ -225,22 +171,12 @@ form.addEventListener("submit", async (e) => {
     const data = await resp.json();
     if (!data.success) return showError(data.message || "识别失败");
     lastResult = data.data;
-
     document.getElementById("r-plant").textContent = data.data.plant_class;
     document.getElementById("r-health").textContent = data.data.health_status;
     document.getElementById("r-disease").textContent = data.data.disease_name;
     document.getElementById("r-degree").textContent = data.data.disease_degree;
     document.getElementById("r-prob").textContent =
       (data.data.probability * 100).toFixed(2) + "%";
-
-    // 低置信度告警展示
-    if (lowConfAlert) {
-      lowConfAlert.hidden = !data.data.low_confidence;
-    }
-
-    // Top-3 概率条渲染
-    renderTopCandidates(data.data.top_candidates);
-
     resultCard.hidden = false;
   } catch (err) {
     showError("网络错误：" + err.message);
@@ -251,6 +187,7 @@ form.addEventListener("submit", async (e) => {
 });
 
 // 解析 SSE 帧。SSE 一帧由若干 "field: value\n" 行组成，帧之间以空行分隔。
+// 这里只关心 event 和 data 两个字段。
 function parseSseFrame(raw) {
   let event = "message";
   const dataLines = [];
@@ -258,6 +195,7 @@ function parseSseFrame(raw) {
     if (line.startsWith("event:")) event = line.slice(6).trim();
     else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
   }
+  // 后端 data 是 JSON 字符串（_sse_pack 用 json.dumps 编码）
   const dataRaw = dataLines.join("\n");
   let data = "";
   try {
@@ -268,50 +206,13 @@ function parseSseFrame(raw) {
   return { event, data };
 }
 
-function renderAdvice(mdText) {
-  const adviceTextEl = document.getElementById("advice-text");
-  if (!adviceTextEl) return;
-  if (window.marked && typeof window.marked.parse === "function") {
-    adviceTextEl.innerHTML = window.marked.parse(mdText);
-  } else {
-    adviceTextEl.textContent = mdText;
-  }
-}
-
-// 复制建议文本
-if (copyAdviceBtn) {
-  copyAdviceBtn.addEventListener("click", async () => {
-    if (!rawAdviceMarkdown) return;
-    try {
-      await navigator.clipboard.writeText(rawAdviceMarkdown);
-      const originalText = copyAdviceBtn.textContent;
-      copyAdviceBtn.textContent = "✅ 已复制";
-      setTimeout(() => {
-        copyAdviceBtn.textContent = originalText;
-      }, 2000);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = rawAdviceMarkdown;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      const originalText = copyAdviceBtn.textContent;
-      copyAdviceBtn.textContent = "✅ 已复制";
-      setTimeout(() => {
-        copyAdviceBtn.textContent = originalText;
-      }, 2000);
-    }
-  });
-}
-
 adviceBtn.addEventListener("click", async () => {
   if (!lastResult) return;
   clearError();
   adviceBtn.disabled = true;
   adviceBtn.textContent = "生成中…";
-  rawAdviceMarkdown = "";
-  renderAdvice("");
+  const adviceTextEl = document.getElementById("advice-text");
+  adviceTextEl.textContent = "";
   adviceCard.hidden = false;
 
   try {
@@ -355,12 +256,9 @@ adviceBtn.addEventListener("click", async () => {
         buffer = buffer.slice(sep + 2);
         if (!frame.trim()) continue;
         const { event, data } = parseSseFrame(frame);
-        if (event === "chunk") {
-          rawAdviceMarkdown += data;
-          renderAdvice(rawAdviceMarkdown);
-        } else if (event === "error") {
-          streamErr = data;
-        }
+        if (event === "chunk") adviceTextEl.textContent += data;
+        else if (event === "error") streamErr = data;
+        // event === "done" → 自然结束
       }
     }
 

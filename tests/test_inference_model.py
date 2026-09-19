@@ -36,14 +36,9 @@ def test_predict_returns_expected_keys(patched_model):
         "health_status",
         "disease_name",
         "disease_degree",
-        "low_confidence",
-        "top_candidates",
     }
     assert isinstance(out["class_id"], int)
     assert 0.0 <= out["probability"] <= 1.0
-    assert isinstance(out["low_confidence"], bool)
-    assert len(out["top_candidates"]) == 3
-    assert out["top_candidates"][0]["class_id"] == out["class_id"]
 
 
 def test_predict_uses_class_map_fallback_when_idx_out_of_range(patched_model):

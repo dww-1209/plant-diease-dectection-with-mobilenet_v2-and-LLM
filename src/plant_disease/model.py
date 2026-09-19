@@ -110,12 +110,11 @@ class InferenceModel:
             raise InferenceError(f"无法解码图片：{exc}") from exc
         return torch.unsqueeze(self.transform(img), dim=0)
 
-    def predict(self, file_bytes: bytes, top_k: int = 3) -> dict:
+    def predict(self, file_bytes: bytes) -> dict:
         """对一张图片做一次推理。
 
         Args:
             file_bytes: 原始图片字节，比如 Flask 端 ``request.files["image"].read()``
-            top_k: 返回前 K 个高概率候选类别（默认 3）
 
         Returns:
             形如::
@@ -127,12 +126,6 @@ class InferenceModel:
                     "health_status": "患病",
                     "disease_name": "玉米灰斑病",
                     "disease_degree": "一般",
-                    "low_confidence": False,
-                    "top_candidates": [
-                        {"class_id": 5, "probability": 0.87, "plant_class": "玉米", ...},
-                        {"class_id": 6, "probability": 0.08, "plant_class": "玉米", ...},
-                        {"class_id": 7, "probability": 0.03, "plant_class": "玉米", ...},
-                    ]
                 }
 
         Raises:
@@ -145,33 +138,12 @@ class InferenceModel:
                 probs = torch.softmax(logits, dim=0)
                 cls_idx = int(torch.argmax(probs).item())
                 prob = float(probs[cls_idx].item())
-
-                # 获取 Top-K 候选
-                k = min(top_k, len(probs))
-                top_probs, top_indices = torch.topk(probs, k=k)
-                top_candidates = []
-                for p_val, idx_val in zip(top_probs, top_indices):
-                    c_idx = int(idx_val.item())
-                    c_info = lookup_class(self.class_info, c_idx)
-                    top_candidates.append(
-                        {
-                            "class_id": c_idx,
-                            "probability": round(float(p_val.item()), 4),
-                            "plant_class": c_info.plant,
-                            "health_status": c_info.health_status,
-                            "disease_name": c_info.disease_name,
-                            "disease_degree": c_info.disease_degree,
-                        }
-                    )
         except Exception as exc:  # noqa: BLE001
             # 前向阶段我们也想兜住所有异常并标准化成 InferenceError，BLE001 是
             # ruff "Blind Except" 警告，这里属于受控的故意行为。
             raise InferenceError(f"前向推理失败：{exc}") from exc
 
         info = lookup_class(self.class_info, cls_idx)
-        # 置信度阈值：低于 40% 标记为低置信度（防盲目误判）
-        low_confidence = prob < 0.40
-
         return {
             "class_id": cls_idx,
             "probability": prob,
@@ -179,6 +151,4 @@ class InferenceModel:
             "health_status": info.health_status,
             "disease_name": info.disease_name,
             "disease_degree": info.disease_degree,
-            "low_confidence": low_confidence,
-            "top_candidates": top_candidates,
         }
